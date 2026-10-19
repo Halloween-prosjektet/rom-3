@@ -1,0 +1,11 @@
+# Secrets
+.env
+# Generated / local
+.godot/
+.venv/
+voice_cache/
+__pycache__/
+.DS_Store
+# Large model files: download separately (see PLAN.md)
+models/*.bin
+voices/*.onnx
