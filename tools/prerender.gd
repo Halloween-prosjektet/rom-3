@@ -39,7 +39,7 @@ func _initialize() -> void:
 
 func _grim_lines() -> void:
 	var g = game
-	for line in g.INTRO_OPENERS + g.INTRO_RULES + g.GREET_SILENT + [g.GREET_FALLBACK, g.LLM_ERROR_LINE, g.ASK_AGAIN_LINE, g.NEXT_ROOM_BUSY_LINE, g.NEXT_ROOM_FREE_LINE, "Prøv igjen, lille dødelige.", "Hmpf! Det var riktig.",
+	for line in g.INTRO_OPENERS + g.INTRO_RULES + g.GREET_SILENT + g.GREET_REPLIES + g.OTHER_LINES + [g.LLM_ERROR_LINE, g.ASK_AGAIN_LINE, g.NEXT_ROOM_BUSY_LINE, g.NEXT_ROOM_FREE_LINE, "Prøv igjen, lille dødelige.", "Hmpf! Det var riktig.",
 			"Du klarte quizen min.", "Det har du allerede prøvd! Velg et annet svar.",
 			"Jeg hørte ingenting. Hold inne knappen mens du snakker.",
 			"Jeg hørte ingenting. Hold inne mellomromstasten mens du snakker.", "Grr! *Svar nå, lille dødelige!*"]:

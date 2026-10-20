@@ -50,8 +50,9 @@ def env(key: str, default: str) -> str:
 
 # python.org's Python on macOS ships without CA certificates; macOS has its own bundle here.
 SSL = ssl.create_default_context(cafile="/etc/ssl/cert.pem" if Path("/etc/ssl/cert.pem").exists() else None)
-API_KEY = env("LLM_API_KEY", "")
-BASE_URL = env("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+# Own key for the voice, so the game's judge can use another provider (TTS_* falls back to LLM_*).
+API_KEY = env("TTS_API_KEY", "") or env("LLM_API_KEY", "")
+BASE_URL = env("TTS_BASE_URL", "") or env("LLM_BASE_URL", "https://openrouter.ai/api/v1")
 TTS_MODEL = env("TTS_MODEL", "google/gemini-3.8-flash-tts")
 TTS_VOICE = env("TTS_VOICE", "Algenib")  # gravelly and deep; also good: Charon, Fenrir
 TEMPO = float(env("TTS_TEMPO", "1.15"))  # Gemini talks slowly; this speeds every line up, pitch unchanged
