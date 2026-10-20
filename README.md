@@ -9,7 +9,7 @@ For å slippe forbi må spilleren klare en quiz, sant-eller-usant og gåter, og 
 - **Tale til tekst:** spilleren holder inne en knapp og snakker. [whisper.cpp](https://github.com/ggerganov/whisper.cpp) kjører lokalt som server med en norsk NB-Whisper-modell.
 - **Vurdering:** svaret sendes til en LLM (OpenAI-kompatibelt API, standard `openai/gpt-oss-20b` på Groq). LLM-en svarer i rollen som Grim, og svaret starter med `[RIKTIG]`, `[FEIL]` eller `[ANNET]`.
 - **Stemme:** `tts_server.py` lager Grims stemme med Gemini TTS via OpenRouter. Uten nett brukes Piper (offline) med sox-effekter. Ferdige replikker lagres i `voice_cache/`.
-- **Kontrollrom:** spillet er rom 3 og bruker [control-room-klienten](https://github.com/Halloween-prosjektet/control-room) i `addons/control_room_client/`. Spillet sender `start_game()` når spilleren starter, og `finish_game()` når spilleren vinner.
+- **Kontrollrom:** spillet er rom 3 og bruker [control-room-klienten](https://github.com/Halloween-prosjektet/control-room) (git submodule i `addons/control_room_client/`). Spillet sender `start_game()` når spilleren starter, og `finish_game()` når spilleren vinner. Se seksjonen «Kontrollrom» nederst i `main.gd`. Pi-en må være på WiFi-et **BakkaIM** for å nå serveren.
 
 ## Filer
 
@@ -24,6 +24,15 @@ For å slippe forbi må spilleren klare en quiz, sant-eller-usant og gåter, og 
 | `art/`, `sfx/`, `fonts/` | Grafikk (Aseprite), lyd og font |
 
 ## Oppsett
+
+Hent prosjektet med tillegget:
+
+```sh
+git clone --recurse-submodules https://github.com/Halloween-prosjektet/rom-3.git
+```
+
+Har du allerede klonet uten tillegget, kjør `git submodule update --init`.
+Oppdater tillegget med `git submodule update --remote addons/control_room_client`.
 
 ### 1. Filer som ikke ligger i repoet
 
@@ -51,7 +60,7 @@ LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_MODEL=openai/gpt-oss-20b
 WHISPER_SERVER=whisper-server              # sti til whisper-server
 WHISPER_MODEL=/full/sti/til/models/nb-whisper-base-q5_0.bin
-CONTROL_ROOM_URL=ws://ADRESSE:PORT         # adressen får dere av kontrollrom-gruppen
+CONTROL_ROOM_URL=ws://172.31.0.200:7321    # valgfri, dette er standard
 ```
 
 Valgfrie innstillinger:
@@ -66,7 +75,7 @@ Valgfrie innstillinger:
 
 **Mac:** åpne prosjektet i Godot og trykk Play.
 
-**Raspberry Pi:** kjør `./start.sh`. Skriptet setter stiene for Pi-en og starter Godot i fullskjerm.
+**Raspberry Pi:** kjør `./start.sh`. Skriptet setter stiene for Pi-en, importerer nye filer og starter Godot i fullskjerm.
 Spillet starter automatisk ved innlogging fra `~/.config/labwc/autostart`.
 
 ## Spille

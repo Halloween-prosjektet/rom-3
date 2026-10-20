@@ -17,10 +17,11 @@ var voice_length := _env("VOICE_LENGTH", "1.2")  # slow and laid-back
 var audio_delay := float(_env("AUDIO_DELAY", "0"))
 # Mic level that counts as someone speaking on the start screen. Room noise or a far-away mic: tune this.
 var mic_start_db := float(_env("MIC_START_DB", "-40"))
-# Control room server (address from the control-room group) and our room number.
-var control_room_url := _env("CONTROL_ROOM_URL", "ws://ADRESSE:PORT")
-# preload, not class_name: works even before the editor has rebuilt its class cache.
-var control_room: Node = preload("res://addons/control_room_client/control_room_client.gd").new(control_room_url, 3)
+# Control room: the server that follows each player from room to room.
+# The Pi must be on the BakkaIM WiFi to reach it. CONTROL_ROOM_URL in .env overrides the address.
+const ROOM := 3
+var control_room_url := _env("CONTROL_ROOM_URL", "ws://172.31.0.200:7321")
+var control_room: ControlRoomClient
 
 # [riddle or question, answer, keywords]. The answer text goes to the LLM, so alternatives can be listed in it.
 # Keywords are exact words that count as correct without asking the LLM (faster); leave empty to always ask.
@@ -452,8 +453,7 @@ func _ready() -> void:
 	debug_label.visible = _env("DEBUG", "") == "1"
 	add_child(debug_label)
 
-	add_child(control_room)
-	control_room.run()
+	_connect_control_room()
 
 	_start_keyboard_readers()
 	_start_pw_record()
@@ -1670,6 +1670,20 @@ func _win(reply: String) -> void:
 	await _say(INNER_LINE, "Master", "1.0")
 	await get_tree().create_timer(RESTART_DELAY).timeout
 	_start()
+
+
+# ---------- Control room ----------
+
+# Connects to the control room server. The client runs on its own from here:
+# it logs in, reconnects if the network drops, and queues events until they are delivered,
+# so start_game() and finish_game() can be called at any time, even while offline.
+func _connect_control_room() -> void:
+	control_room = ControlRoomClient.new(control_room_url, ROOM)
+	add_child(control_room)
+	# Signals are connected before run(), so none are missed.
+	control_room.authenticated.connect(func(): print("Koblet til kontrollrommet som rom %d" % ROOM))
+	control_room.gave_up.connect(func(): push_warning("Fikk ikke kontakt med kontrollrommet på %s" % control_room_url))
+	control_room.run()
 
 
 func _load_frames(prefix: String, anims: Dictionary) -> SpriteFrames:
