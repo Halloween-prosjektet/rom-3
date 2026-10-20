@@ -44,6 +44,8 @@ func _grim_lines() -> void:
 			"Jeg hørte ingenting. Hold inne knappen mens du snakker.",
 			"Jeg hørte ingenting. Hold inne mellomromstasten mens du snakker.", "Grr! *Svar nå, lille dødelige!*"]:
 		_add(line)
+	for taunt in g.SKIP_TAUNTS:
+		_add(taunt[0])
 	for list in [g.CORRECT_LINES, g.WRONG_LINES, g.WAIT_LINES, g.WIN_LINES]:
 		for line in list:
 			_add(line)
@@ -55,7 +57,7 @@ func _grim_lines() -> void:
 	for line in ["Det var faktisk sant.", "Det var faktisk løgn.", "Hehe. Si sant eller løgn, lille dødelige!"]:
 		_add(line)
 	for r in g.RIDDLES:
-		for line in [r[0], "Neste utfordring er en gåte. " + r[0], "Neste: " + r[0], g.REPEAT_LINE + r[0]]:
+		for line in [r[0], "Neste utfordring er en gåte. " + r[0], "Neste: " + r[0], g.REPEAT_LINE + r[0], "Ny gåte: " + r[0]]:
 			_add(line)
 	for q in g.QUIZ:
 		g.quiz = q

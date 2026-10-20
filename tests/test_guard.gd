@@ -18,6 +18,9 @@ func _initialize() -> void:
 	assert(not game._has_keyword("Hvor mange hjerter har en blekksprut"))
 	assert(game._asks_again("Hva var gåten igjen?"))
 	assert(game._asks_again("Kan du gjenta?"))
+	assert(game._asks_skip("Neste spørsmål."))
+	assert(game._asks_skip("Jeg gir opp!"))
+	assert(not game._asks_skip("Passer det?"))  # skip words count only as whole words
 	assert(not game._asks_again("Galdhøpiggen"))
 	game.riddle = ["Jo mer du tar bort, jo større blir det. Hva er det?", "et hull", ["hull", "hullet"]]
 	assert(game._has_keyword("Et rull."))

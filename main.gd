@@ -448,6 +448,20 @@ const WAIT_LINES := [
 	"Jeg venter... og venter... og *venter*.",
 ]
 const WAIT_TALK_AFTER := 15.0
+# Saying one of these during a riddle skips it: Grim mocks the player, then gives a new riddle.
+const SKIP_PHRASES := ["neste spørsmål", "neste gåte", "nytt spørsmål", "ny gåte", "annen gåte", "annet spørsmål",
+	"hopp over", "hoppe over", "skip", "gir opp", "vet ikke", "pass"]
+# [taunt, animation] when the player skips. Every taunt has its own animation (see _taunt_tween).
+const SKIP_TAUNTS := [
+	["Muhaha! Gir du opp allerede? Jeg snurrer rundt av latter! For en liten pyse du er!", "spin"],
+	["Hehe! Hopp over, sier du? Da hopper jeg også! Hopp, hopp, hopp! Se så lett det er!", "bounce"],
+	["Hva sa du? Gir du opp? *Se meg inn i øynene* og si det en gang til! Hehe. Jeg trodde ikke det.", "zoom"],
+	["Å nei, å nei, gåten var visst for vanskelig. Stakkars lille menneske. Jeg vugger av medlidenhet. Hehe.", "wobble"],
+	["Muhaha! Den var for vanskelig? Da ruller jeg en tur mens jeg ler av deg! Hjuuuuul!", "roll"],
+	["Du gir opp? Dette er helt opp ned! Jeg står på hodet av sjokk. Hehe, nå ser du dum ut fra begge sider.", "flip"],
+	["Hehe. Jeg blir så liten av skam på dine vegne. Bitte, bitte liten. Men jeg er fortsatt smartere enn deg!", "shrink"],
+	["Seiersdans! Seiersdans! Menneske ga opp, gresskar vant! *Muhaha!* Dans med meg, lille taper!", "dance"],
+]
 const ASK_AGAIN_LINE := "Hør godt etter, lille dødelige. "
 const LLM_ERROR_LINE := "Hmm, åndene forstyrrer meg... Si det igjen! "
 # Phrases that mean "say the riddle again": answered instantly, no LLM.
@@ -568,6 +582,7 @@ var home := Vector2.ZERO
 var shake := 4  # sprite shake in pixels while scaring
 var hush := false  # music off: dead silence in the dark room
 var walking := false  # win walk-past tween owns the sprite
+var taunting := false  # skip taunt tween owns the sprite
 var shown_anger := 0.0  # eases toward anger, so color and vignette never jump
 var pop := 0.0  # squash-and-stretch kick when he starts talking
 var was_talking := false
@@ -1228,6 +1243,8 @@ func _on_heard(text: String) -> void:
 	# Decided locally when possible: no LLM round trip, and repeating the riddle can never win.
 	if _has_keyword(text):
 		_on_correct(_pick(CORRECT_LINES))
+	elif _asks_skip(text):
+		_skip_riddle()
 	elif _asks_again(text):
 		_say(ASK_AGAIN_LINE + riddle[0])
 	elif _is_repeat(text):
@@ -1235,6 +1252,81 @@ func _on_heard(text: String) -> void:
 		_say(REPEAT_LINE + riddle[0])
 	else:
 		_ask(text)
+
+
+func _asks_skip(text: String) -> bool:
+	var t := " %s " % " ".join(_words(text))
+	for phrase in SKIP_PHRASES:
+		if " %s " % phrase in t:
+			return true
+	return false
+
+
+# Grim mocks the player for 5-10 s with the taunt's own animation, then gives a new riddle.
+func _skip_riddle() -> void:
+	busy = true
+	var taunt: Array = _pick(SKIP_TAUNTS)
+	taunting = true
+	var tw := _taunt_tween(taunt[1])
+	await _say(taunt[0])
+	tw.kill()
+	sprite.rotation = wrapf(sprite.rotation, -PI, PI)  # spin and roll leave whole turns behind
+	var back := create_tween().set_parallel().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	back.tween_property(sprite, "position", home, 0.4)
+	back.tween_property(sprite, "rotation", 0.0, 0.4)
+	back.tween_property(sprite, "scale", Vector2.ONE * SPRITE_SCALE * host_scale, 0.4)
+	await back.finished
+	taunting = false
+	_next_riddle()
+	_say("Ny gåte: " + riddle[0])
+
+
+# A looping animation for one taunt; it runs until the taunt has been said.
+func _taunt_tween(anim: String) -> Tween:
+	var base := Vector2.ONE * SPRITE_SCALE * host_scale
+	var tw := create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+	sprite.position = home
+	match anim:
+		"spin":  # spins round and round
+			tw.tween_property(sprite, "rotation", TAU, 0.9).as_relative()
+		"bounce":  # hops up and down
+			tw.tween_property(sprite, "position:y", home.y - 50, 0.25).set_ease(Tween.EASE_OUT)
+			tw.tween_property(sprite, "position:y", home.y, 0.25).set_ease(Tween.EASE_IN)
+		"zoom":  # lunges into your face and stares, then backs off
+			tw.tween_property(sprite, "scale", base * 2.6, 0.5).set_ease(Tween.EASE_OUT)
+			tw.parallel().tween_property(sprite, "position", home - Vector2(0, 80), 0.5)
+			tw.tween_interval(1.0)
+			tw.tween_property(sprite, "scale", base, 0.5)
+			tw.parallel().tween_property(sprite, "position", home, 0.5)
+			tw.tween_interval(0.4)
+		"wobble":  # rocks from side to side
+			tw.tween_property(sprite, "rotation", 0.35, 0.4)
+			tw.tween_property(sprite, "rotation", -0.35, 0.8)
+			tw.tween_property(sprite, "rotation", 0.0, 0.4)
+		"roll":  # rolls off to the right and comes back in from the left
+			var width := get_viewport_rect().size.x
+			tw.tween_property(sprite, "position:x", width + 120, 1.2).set_ease(Tween.EASE_IN)
+			tw.parallel().tween_property(sprite, "rotation", TAU * 2, 1.2).as_relative()
+			tw.tween_callback(func(): sprite.position.x = -120)
+			tw.tween_property(sprite, "position:x", home.x, 1.2).set_ease(Tween.EASE_OUT)
+			tw.parallel().tween_property(sprite, "rotation", TAU * 2, 1.2).as_relative()
+			tw.tween_interval(0.5)
+		"flip":  # turns upside down and hangs there
+			tw.tween_property(sprite, "rotation", PI, 0.5).set_trans(Tween.TRANS_BACK)
+			tw.tween_interval(1.2)
+			tw.tween_property(sprite, "rotation", 0.0, 0.5).set_trans(Tween.TRANS_BACK)
+			tw.tween_interval(0.6)
+		"shrink":  # shrinks to a tiny pumpkin, then pops back
+			tw.tween_property(sprite, "scale", base * 0.25, 0.5)
+			tw.tween_interval(1.0)
+			tw.tween_property(sprite, "scale", base, 0.4).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+			tw.tween_interval(0.6)
+		"dance":  # steps left and right, squashing on every step
+			for dir in [-1, 1]:
+				tw.tween_property(sprite, "position:x", home.x + dir * 45, 0.3)
+				tw.parallel().tween_property(sprite, "scale", base * Vector2(1.15, 0.85), 0.15)
+				tw.tween_property(sprite, "scale", base, 0.15)
+	return tw
 
 
 func _asks_again(text: String) -> bool:
@@ -2026,7 +2118,7 @@ func _process(delta: float) -> void:
 		create_tween().tween_property(self, "pop", 0.0, 0.4).from(0.06).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	was_talking = talking
 	sprite.offset = Vector2(randi_range(-shake, shake), randi_range(-shake, shake)) if scaring else Vector2.ZERO
-	if not scaring and not walking:
+	if not scaring and not walking and not taunting:
 		var now := Time.get_ticks_msec() / 1000.0
 		# Slow float, a faster gentle squash while talking, and a smooth tremble when very angry.
 		var bob := sin(now * 1.6) * 4.0
