@@ -287,6 +287,8 @@ var scaring := false
 var flash := 0.0
 signal play_pressed
 var menu := Control.new()
+var menu_hint := Label.new()
+var incoming_player := ""  # name the control room sent us; "" while no one is on the way
 var line_decks := {}  # see _pick
 var wait_s := 0.0  # seconds of silence while waiting for an answer
 var say_id := 0  # bumped to cancel a line that is still playing
@@ -488,9 +490,11 @@ func _start() -> void:
 	tf_ui.hide()
 	tf_done = 0
 	sprite.modulate.a = 0.0  # pitch dark until the fall
+	_update_menu_hint()
 	menu.show()
 	await play_pressed
 	menu.hide()
+	incoming_player = ""
 	control_room.start_game()
 	await _fall_in()
 	await _greet()
@@ -722,7 +726,7 @@ func _restart_recording() -> void:
 # Hold to record, release to send. Safe to call twice (keyboard can arrive both via Godot and evdev).
 func _talk(pressed: bool) -> void:
 	if menu.visible:
-		if pressed:
+		if pressed and _can_start():
 			play_pressed.emit()
 		return
 	# Held while someone is talking (or about to): fast-forward the speech instead of answering.
@@ -795,7 +799,7 @@ func _listen_for_start() -> void:
 		var text := (await _transcribe(_clean_audio(path))).to_lower()
 		_debug("Meny", text)
 		print("Meny hørte: ", text)
-		if menu.visible and START_WORDS.any(func(w): return w in text):
+		if menu.visible and _can_start() and START_WORDS.any(func(w): return w in text):
 			play_pressed.emit()
 	menu_listening = false
 
@@ -1186,8 +1190,7 @@ func _draw_fall() -> void:
 func _build_menu() -> void:
 	add_child(menu)
 	menu.hide()
-	var hint := Label.new()
-	hint.text = "Trykk mellomrom eller si «start»"
+	var hint := menu_hint
 	hint.position = Vector2(0, 168)
 	hint.size = Vector2(640, 24)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1681,13 +1684,45 @@ func _win(reply: String) -> void:
 # Connects to the control room server. The client runs on its own from here:
 # it logs in, reconnects if the network drops, and queues events until they are delivered,
 # so start_game() and finish_game() can be called at any time, even while offline.
+# The control-room test game passes in its own client instead (already in the tree and running);
+# then only the signals are connected.
 func _connect_control_room() -> void:
-	control_room = ControlRoomClient.new(control_room_url, ROOM)
-	add_child(control_room)
+	var given := control_room != null
+	if not given:
+		control_room = ControlRoomClient.new(control_room_url, ROOM)
+		add_child(control_room)
 	# Signals are connected before run(), so none are missed.
-	control_room.authenticated.connect(func(): print("Koblet til kontrollrommet som rom %d" % ROOM))
+	control_room.authenticated.connect(_on_control_room_authenticated)
 	control_room.gave_up.connect(func(): push_warning("Fikk ikke kontakt med kontrollrommet på %s" % control_room_url))
-	control_room.run()
+	control_room.player_incoming.connect(_on_player_incoming)
+	if not given:
+		control_room.run()
+
+
+func _on_control_room_authenticated() -> void:
+	print("Koblet til kontrollrommet som rom %d" % ROOM)
+	_update_menu_hint()
+
+
+# Room 2 is done: their player walks over to us.
+func _on_player_incoming(username: String, _player_data: Variant) -> void:
+	incoming_player = username
+	_update_menu_hint()
+
+
+# Start screen: while connected, a game only starts once the control room has sent a player,
+# so start_game() always belongs to someone. Offline, anyone can start.
+func _can_start() -> bool:
+	return incoming_player != "" or not control_room.is_authenticated
+
+
+func _update_menu_hint() -> void:
+	if not _can_start():
+		menu_hint.text = "Venter på neste spiller..."
+	elif incoming_player != "":
+		menu_hint.text = "Velkommen, %s! Trykk mellomrom eller si «start»" % incoming_player
+	else:
+		menu_hint.text = "Trykk mellomrom eller si «start»"
 
 
 # After finish_game() the server answers game_finish_ok (go on) or, if the next room still
