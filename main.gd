@@ -213,6 +213,9 @@ const WIN_LINES := [
 	"Hmpf. Alle fire riktige. Du har visst *gresskar-hjerne*. Gå da!",
 ]
 const INNER_LINE := "Å nei, printeren er ødelagt. Jeg får heller gå til neste etasje."
+# Grim, when the control room says the next room is still busy, and when it is free.
+const NEXT_ROOM_BUSY_LINE := "Hehe, ikke så fort! Neste etasje er opptatt. Du blir her litt til, lille dødelige."
+const NEXT_ROOM_FREE_LINE := "Hmpf. Nå er veien fri. Gå da, før jeg ombestemmer meg!"
 
 # Anger meter 0-100: rises while he waits for an answer and on bad answers.
 # It changes his tone (prompt), his voice (deeper) and his look (redder, shaking).
@@ -1668,6 +1671,7 @@ func _win(reply: String) -> void:
 	tw.tween_property(printer, "modulate:a", 1.0, 2.5)
 	await tw.finished
 	await _say(INNER_LINE, "Master", "1.0")
+	await _wait_for_next_room()
 	await get_tree().create_timer(RESTART_DELAY).timeout
 	_start()
 
@@ -1684,6 +1688,20 @@ func _connect_control_room() -> void:
 	control_room.authenticated.connect(func(): print("Koblet til kontrollrommet som rom %d" % ROOM))
 	control_room.gave_up.connect(func(): push_warning("Fikk ikke kontakt med kontrollrommet på %s" % control_room_url))
 	control_room.run()
+
+
+# After finish_game() the server answers game_finish_ok (go on) or, if the next room still
+# has a player, game_finish_wait first and game_finish_ok later. The client keeps track in
+# is_waiting_for_next_pi, so we only hold the player here while that is true.
+# No answer at all (server down) never counts as busy, so the game is never stuck offline.
+func _wait_for_next_room() -> void:
+	if not control_room.is_waiting_for_next_pi:
+		return
+	await _say(NEXT_ROOM_BUSY_LINE)
+	# A loop, not a single await: game_finish_ok may already have come while Grim was talking.
+	while control_room.is_waiting_for_next_pi:
+		await control_room.game_finish_ok
+	await _say(NEXT_ROOM_FREE_LINE)
 
 
 func _load_frames(prefix: String, anims: Dictionary) -> SpriteFrames:
